@@ -70,7 +70,7 @@ from ultralytics.data.dataset import YOLODataset
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
-from ultralytics.nn.tasks import DetectionModel, SegmentationModel, WorldModel
+from ultralytics.nn.tasks import DetectionModel, SegmentationModel, WorldModel, OBBModel, ClassificationModel
 from ultralytics.utils import (
     ARM64,
     DEFAULT_CFG,
@@ -112,6 +112,7 @@ def export_formats():
         ["TensorFlow.js", "tfjs", "_web_model", True, False],
         ["PaddlePaddle", "paddle", "_paddle_model", True, True],
         ["NCNN", "ncnn", "_ncnn_model", True, True],
+        ["ONNXRUNTIME", "onnxruntime", ".onnx", True, False],
     ]
     return pandas.DataFrame(x, columns=["Format", "Argument", "Suffix", "CPU", "GPU"])
 
@@ -183,7 +184,7 @@ class Exporter:
         flags = [x == fmt for x in fmts]
         if sum(flags) != 1:
             raise ValueError(f"Invalid export format='{fmt}'. Valid formats are {fmts}")
-        jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, ncnn = flags  # export booleans
+        jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, ncnn, onnxruntime = flags  # export booleans
         is_tf_format = any((saved_model, pb, tflite, edgetpu, tfjs))
 
         # Device
@@ -323,6 +324,8 @@ class Exporter:
             f[10], _ = self.export_paddle()
         if ncnn:  # NCNN
             f[11], _ = self.export_ncnn()
+        if onnxruntime:
+            f[12], _ = self.export_onnxruntime()
 
         # Finish
         f = [str(x) for x in f if x]  # filter out '' and None
@@ -395,8 +398,9 @@ class Exporter:
         opset_version = self.args.opset or get_latest_opset()
         LOGGER.info(f"\n{prefix} starting export with onnx {onnx.__version__} opset {opset_version}...")
         f = str(self.file.with_suffix(".onnx"))
-
         output_names = ["output0", "output1"] if isinstance(self.model, SegmentationModel) else ["output0"]
+        if hasattr(self.model, "output_names"):
+            output_names = self.model.output_names                 
         dynamic = self.args.dynamic
         if dynamic:
             dynamic = {"images": {0: "batch", 2: "height", 3: "width"}}  # shape(1,3,640,640)
@@ -1012,6 +1016,75 @@ class Exporter:
         yaml_save(Path(f) / "metadata.yaml", self.metadata)  # add metadata.yaml
         return f, None
 
+    @try_export
+    def export_onnxruntime(self, prefix=colorstr("ONNXRUNTIME:")):
+        class Wrapper(torch.nn.Module):
+            def __init__(self, model):
+                super(Wrapper, self).__init__()
+                for m in model.model:
+                    if isinstance(m, Detect):
+                        setattr(m, "export_conv_layers_only", True)
+                if isinstance(model, OBBModel):
+                    output_names = ["output0", "output1", "output2", "output3", "output4", "output5" ,"output6" ,"output7", "output8"]
+                elif isinstance(model, DetectionModel):
+                    output_names = ["output0", "output1", "output2", "output3", "output4", "output5"]
+                elif isinstance(model, ClassificationModel):
+                    output_names = []
+                    for i in range(len(self.output_shape)):
+                        output_names.append("output" + str(i))
+                self._model = model
+                self.output_names = output_names
+            def forward(self, input_tensor):
+                if isinstance(input_tensor, list):
+                    input_tensor[0] = input_tensor[0].permute(0,3,1,2)
+                    input_tensor[0] = input_tensor[0].float()
+                    input_tensor[0] = input_tensor[0] / 255.0
+                    return self._model(input_tensor)
+                else:
+                    nchw_input_tensor = input_tensor.permute(0,3,1,2)
+                    nchw_input_tensor = nchw_input_tensor.float()
+                    nchw_input_tensor = nchw_input_tensor / 255.0
+                    return self._model(nchw_input_tensor)
+        self.im = self.im.permute(0,2,3,1).type(torch.uint8)
+        if isinstance(self.model, WorldModel):
+            self.im = [self.im , torch.ones((1, 2, 512), dtype=torch.float32)]
+            class CLIP(torch.nn.Module):
+                def __init__(self, clip) -> None:
+                    super().__init__()
+                    self.model = clip#.load("ViT-B/32")[0]
+                def forward(self, text):
+                    device = next(self.model.parameters()).device
+                    txt_feats = self.model.encode_text(text)
+                    return txt_feats
+                
+            clip_model = CLIP(self.model.clip_model)  
+            fout = self.file.with_name("clip.onnx")
+            torch.onnx.export(
+                clip_model,  # dynamic=True only compatible with cpu
+                torch.ones(1, 77, dtype=torch.int32),
+                fout,
+                dynamic_axes= {"input": {0:"batch"}},
+                verbose=False,
+                opset_version=self.args.opset,
+                do_constant_folding=False,  # WARNING: DNN inference with torch>=1.12 may require do_constant_folding=False
+                input_names=["input"],
+                output_names=["output"]
+            )
+            import onnx, onnxsim
+            model_onnx = onnx.load(fout)
+            model_onnx, check = onnxsim.simplify(model_onnx)
+            assert check, "Simplified ONNX model could not be validated"
+            onnx.save(model_onnx, fout)
+            self.model = Wrapper(self.model)
+            onnx_path, _ = self.export_onnx()
+        else:
+            
+            self.model = Wrapper(self.model)
+            onnx_path, _ = self.export_onnx()
+        
+            
+        return onnx_path, _
+    
     def _add_tflite_metadata(self, file):
         """Add metadata to *.tflite models per https://www.tensorflow.org/lite/models/convert/metadata."""
         import flatbuffers
