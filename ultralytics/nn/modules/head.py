@@ -53,7 +53,7 @@ class Detect(nn.Module):
         if self.end2end:
             return self.forward_end2end(x)
 
-        if hasattr(self, "export_conv_layers_only"):
+        if hasattr(self, "use_conv_layers_only"):
             res = []
             for i in range(self.nl):
                 res.append([self.cv2[i](x[i]),self.cv3[i](x[i])])
@@ -82,10 +82,14 @@ class Detect(nn.Module):
             torch.cat((self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])), 1) for i in range(self.nl)
         ]
         
-        if hasattr(self, "export_conv_layers_only"):
+        if hasattr(self, "use_conv_layers_only"):
             res = []
             for i in range(self.nl):
                 res.append([self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])])
+            # import numpy as np
+            # for i, re in enumerate(res):
+            #     for j, r in enumerate(re):
+            #         np.savetxt(str(i) + str(j) + '.txt', r.cpu().detach().numpy().reshape(-1,1), fmt="%.6f")
             return res
         
         for i in range(self.nl):

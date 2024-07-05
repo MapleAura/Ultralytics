@@ -17,7 +17,7 @@ from PIL import Image
 from ultralytics.utils import ARM64, IS_JETSON, IS_RASPBERRYPI, LINUX, LOGGER, ROOT, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_version, check_yaml
 from ultralytics.utils.downloads import attempt_download_asset, is_url
-
+from ultralytics.nn.modules import Detect
 
 def check_class_names(names):
     """
@@ -89,6 +89,7 @@ class AutoBackend(nn.Module):
         batch=1,
         fuse=True,
         verbose=True,
+        use_conv_layers_only=False
     ):
         """
         Initialize the AutoBackend for inference.
@@ -424,6 +425,11 @@ class AutoBackend(nn.Module):
         if "names" not in locals():  # names missing
             names = default_class_names(data)
         names = check_class_names(names)
+        
+        if use_conv_layers_only:
+            for m in self.model.model:
+                if isinstance(m, Detect):
+                    setattr(m, "use_conv_layers_only", True)
 
         # Disable gradients
         if pt:

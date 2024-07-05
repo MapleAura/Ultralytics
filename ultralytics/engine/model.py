@@ -432,7 +432,7 @@ class Model(nn.Module):
 
         if not self.predictor:
             self.predictor = predictor or self._smart_load("predictor")(overrides=args, _callbacks=self.callbacks)
-            self.predictor.setup_model(model=self.model, verbose=is_cli)
+            self.predictor.setup_model(model=self.model, verbose=is_cli, use_conv_layers_only=args.get("use_conv_layers_only", False))
         else:  # only update args if predictor is already setup
             self.predictor.args = get_cfg(self.predictor.args, args)
             if "project" in args or "name" in args:

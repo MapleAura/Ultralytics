@@ -1018,13 +1018,13 @@ class Exporter:
 
     @try_export
     def export_onnxruntime(self, prefix=colorstr("ONNXRUNTIME:")):
-        export_conv_layers_only = self.args.export_conv_layers_only
+        use_conv_layers_only = self.args.use_conv_layers_only
         class Wrapper(torch.nn.Module):
             def __init__(self, model):
                 super(Wrapper, self).__init__()
                 for m in model.model:
-                    if isinstance(m, Detect) and export_conv_layers_only:
-                        setattr(m, "export_conv_layers_only", True)
+                    if isinstance(m, Detect) and use_conv_layers_only:
+                        setattr(m, "use_conv_layers_only", True)
                         if isinstance(model, OBBModel):
                             self.output_names = ["output0", "output1", "output2", "output3", "output4", "output5" ,"output6" ,"output7", "output8"]
                         elif isinstance(model, DetectionModel):
