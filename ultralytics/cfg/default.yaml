@@ -85,6 +85,7 @@ simplify: False # (bool) ONNX: simplify model using `onnxslim`
 opset: # (int, optional) ONNX: opset version
 workspace: 4 # (int) TensorRT: workspace size (GB)
 nms: False # (bool) CoreML: add NMS
+export_conv_layers_only: True
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
 lr0: 0.01 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)

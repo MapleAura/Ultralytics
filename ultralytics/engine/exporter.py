@@ -1018,22 +1018,22 @@ class Exporter:
 
     @try_export
     def export_onnxruntime(self, prefix=colorstr("ONNXRUNTIME:")):
+        export_conv_layers_only = self.args.export_conv_layers_only
         class Wrapper(torch.nn.Module):
             def __init__(self, model):
                 super(Wrapper, self).__init__()
                 for m in model.model:
-                    if isinstance(m, Detect):
+                    if isinstance(m, Detect) and export_conv_layers_only:
                         setattr(m, "export_conv_layers_only", True)
-                if isinstance(model, OBBModel):
-                    output_names = ["output0", "output1", "output2", "output3", "output4", "output5" ,"output6" ,"output7", "output8"]
-                elif isinstance(model, DetectionModel):
-                    output_names = ["output0", "output1", "output2", "output3", "output4", "output5"]
-                elif isinstance(model, ClassificationModel):
-                    output_names = []
+                        if isinstance(model, OBBModel):
+                            self.output_names = ["output0", "output1", "output2", "output3", "output4", "output5" ,"output6" ,"output7", "output8"]
+                        elif isinstance(model, DetectionModel):
+                            self.output_names = ["output0", "output1", "output2", "output3", "output4", "output5"]
+                if isinstance(model, ClassificationModel):
+                    self.output_names = []
                     for i in range(len(self.output_shape)):
-                        output_names.append("output" + str(i))
+                        self.output_names.append("output" + str(i))
                 self._model = model
-                self.output_names = output_names
             def forward(self, input_tensor):
                 if isinstance(input_tensor, list):
                     input_tensor[0] = input_tensor[0].permute(0,3,1,2)

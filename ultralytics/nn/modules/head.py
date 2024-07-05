@@ -81,6 +81,13 @@ class Detect(nn.Module):
         one2one = [
             torch.cat((self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])), 1) for i in range(self.nl)
         ]
+        
+        if hasattr(self, "export_conv_layers_only"):
+            res = []
+            for i in range(self.nl):
+                res.append([self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])])
+            return res
+        
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
         if self.training:  # Training path
