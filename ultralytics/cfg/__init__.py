@@ -38,6 +38,7 @@ TASK2DATA = {
     "classify": "imagenet10",
     "pose": "coco8-pose.yaml",
     "obb": "dota8.yaml",
+    "mcdetect": ""
 }
 TASK2MODEL = {
     "detect": "yolov8n.pt",
@@ -45,6 +46,7 @@ TASK2MODEL = {
     "classify": "yolov8n-cls.pt",
     "pose": "yolov8n-pose.pt",
     "obb": "yolov8n-obb.pt",
+    "mcdetect": "yolov10n.pt"
 }
 TASK2METRIC = {
     "detect": "metrics/mAP50-95(B)",

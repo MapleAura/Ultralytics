@@ -28,6 +28,8 @@ def check_class_names(names):
     if isinstance(names, list):  # names is a list
         names = dict(enumerate(names))  # convert to dict
     if isinstance(names, dict):
+        if isinstance(list(names.keys())[0], str):
+            return names
         # Convert 1) string keys to int, i.e. '0' to 0, and non-string values to strings, i.e. True to 'True'
         names = {int(k): str(v) for k, v in names.items()}
         n = len(names)

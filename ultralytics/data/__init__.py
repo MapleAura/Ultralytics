@@ -9,10 +9,12 @@ from .dataset import (
     YOLOConcatDataset,
     YOLODataset,
     YOLOMultiModalDataset,
+    YOLOMCDataset
 )
 
 __all__ = (
     "BaseDataset",
+    "YOLOMCDDataset",
     "ClassificationDataset",
     "SemanticDataset",
     "YOLODataset",

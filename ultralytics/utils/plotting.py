@@ -1021,16 +1021,22 @@ def plot_images(
                 boxes = ops.xywhr2xyxyxyxy(boxes) if is_obb else ops.xywh2xyxy(boxes)
                 for j, box in enumerate(boxes.astype(np.int64).tolist()):
                     c = classes[j]
-                    color = colors(c)
-                    c = names.get(c, c) if names else c
+                    if not isinstance(c, int):
+                        color = colors(0)
+                    else:
+                        color = colors(c)
+                        c = names.get(c, c) if names else c
                     if labels or conf[j] > conf_thres:
                         label = f"{c}" if labels else f"{c} {conf[j]:.1f}"
                         annotator.box_label(box, label, color=color, rotated=is_obb)
 
             elif len(classes):
                 for c in classes:
-                    color = colors(c)
-                    c = names.get(c, c) if names else c
+                    if not isinstance(c, int):
+                        color = colors(0)
+                    else:
+                        color = colors(c)
+                        c = names.get(c, c) if names else c
                     annotator.text((x, y), f"{c}", txt_color=color, box_style=True)
 
             # Plot keypoints
@@ -1243,6 +1249,17 @@ def output_to_target(output, max_det=300):
         targets.append(torch.cat((j, cls, ops.xyxy2xywh(box), conf), 1))
     targets = torch.cat(targets, 0).numpy()
     return targets[:, 0], targets[:, 1], targets[:, 2:-1], targets[:, -1]
+
+def output_to_mctarget(output, max_det=300):
+    """Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting."""
+    targets = []
+    for i, o in enumerate(output):
+        box, conf = o[:max_det, :5].cpu().split((4, 1), 1)
+        sub_cls = o[:max_det, 7::2].cpu()
+        j = torch.full((conf.shape[0], 1), i)
+        targets.append(torch.cat((j, ops.xyxy2xywh(box), sub_cls, conf), 1))
+    targets = torch.cat(targets, 0).numpy()
+    return targets[:, 0], targets[:, 5:-1], targets[:, 1:5],  targets[:, -1]
 
 
 def output_to_rotated_target(output, max_det=300):
